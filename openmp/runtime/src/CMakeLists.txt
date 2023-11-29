@@ -90,6 +90,9 @@ else()
     kmp_sched.cpp
     kmp_collapse.cpp
   )
+  if(${LIBOMP_USE_HPX})
+    libomp_append(LIBOMP_CXXFILES z_HPX_threading_util.cpp)
+  endif()
   if(WIN32)
     # Windows specific files
     libomp_append(LIBOMP_CXXFILES z_Windows_NT_util.cpp)
@@ -170,6 +173,10 @@ if(${LIBOMP_USE_HWLOC})
 			     "$<BUILD_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
 			     "$<INSTALL_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
   )
+endif()
+if(${LIBOMP_USE_HPX})
+    target_compile_definitions(omp PUBLIC USE_OS_THREADING=0)
+    target_link_libraries(omp PUBLIC HPX::hpx HPX::wrap_main)
 endif()
 
 if(OPENMP_MSVC_NAME_SCHEME)

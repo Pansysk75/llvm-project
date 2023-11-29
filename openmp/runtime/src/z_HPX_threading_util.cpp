@@ -1,27 +1,15 @@
 /*
- * z_Windows_NT_util.cpp -- platform specific routines.
+ * z_HPX_util.cpp -- HPX threading routines.
  */
 
-//===----------------------------------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
 
-#define USE_OS_THREADING 0
-
+// TODO_HPXMP: Remove unnecessary includes.
 #include "kmp.h"
 #include "kmp_affinity.h"
 #include "kmp_i18n.h"
 #include "kmp_io.h"
 #include "kmp_itt.h"
 #include "kmp_wait_release.h"
-
-/* This code is related to NtQuerySystemInformation() function. This function
-   is used in the Load balance algorithm for OMP_DYNAMIC=true to find the
-   number of running threads in the system. */
 
 #include <ntsecapi.h> // UNICODE_STRING
 #include <ntstatus.h>
@@ -30,7 +18,6 @@
 #pragma comment(lib, "psapi.lib")
 #endif
 
-#if USE_OS_THREADING
 
 enum SYSTEM_INFORMATION_CLASS {
   SystemProcessInformation = 5
@@ -135,7 +122,6 @@ HMODULE ntdll = NULL;
 /* End of NtQuerySystemInformation()-related code */
 
 static HMODULE kernel32 = NULL;
-#endif /* USE_OS_THREADING */
 
 #if KMP_HANDLE_SIGNALS
 typedef void (*sig_func_t)(int);
@@ -143,20 +129,16 @@ static sig_func_t __kmp_sighldrs[NSIG];
 static int __kmp_siginstalled[NSIG];
 #endif
 
-#if USE_OS_THREADING
-
 #if KMP_USE_MONITOR
 static HANDLE __kmp_monitor_ev;
 #endif
 
-#endif /* USE_OS_THREADING */
-static kmp_int64 __kmp_win32_time;
-double __kmp_win32_tick;
-#if USE_OS_THREADING
+
 int __kmp_init_runtime = FALSE;
 CRITICAL_SECTION __kmp_win32_section;
 
-
+// TOD_HPXMP: Note to self, all __kmp_win32 functions are internal, so they can 
+// be replaced by their hpxmp counterparts (or inlined altogether).
 
 void __kmp_win32_mutex_init(kmp_win32_mutex_t *mx) {
   InitializeCriticalSection(&mx->cs);
@@ -655,50 +637,7 @@ void __kmp_affinity_determine_capable(const char *env_var) {
                 __kmp_affin_mask_size));
 }
 
-#endif /* USE_OS_THREADING */
 
-double __kmp_read_cpu_time(void) {
-  FILETIME CreationTime, ExitTime, KernelTime, UserTime;
-  int status;
-  double cpu_time;
-
-  cpu_time = 0;
-
-  status = GetProcessTimes(GetCurrentProcess(), &CreationTime, &ExitTime,
-                           &KernelTime, &UserTime);
-
-  if (status) {
-    double sec = 0;
-
-    sec += KernelTime.dwHighDateTime;
-    sec += UserTime.dwHighDateTime;
-
-    /* Shift left by 32 bits */
-    sec *= (double)(1 << 16) * (double)(1 << 16);
-
-    sec += KernelTime.dwLowDateTime;
-    sec += UserTime.dwLowDateTime;
-
-    cpu_time += (sec * 100.0) / KMP_NSEC_PER_SEC;
-  }
-
-  return cpu_time;
-}
-
-int __kmp_read_system_info(struct kmp_sys_info *info) {
-  info->maxrss = 0; /* the maximum resident set size utilized (in kilobytes) */
-  info->minflt = 0; /* the number of page faults serviced without any I/O */
-  info->majflt = 0; /* the number of page faults serviced that required I/O */
-  info->nswap = 0; // the number of times a process was "swapped" out of memory
-  info->inblock = 0; // the number of times the file system had to perform input
-  info->oublock = 0; // number of times the file system had to perform output
-  info->nvcsw = 0; /* the number of times a context switch was voluntarily */
-  info->nivcsw = 0; /* the number of times a context switch was forced */
-
-  return 1;
-}
-
-#if USE_OS_THREADING
 void __kmp_runtime_initialize(void) {
   SYSTEM_INFO info;
   kmp_str_buf_t path;
@@ -948,61 +887,6 @@ void __kmp_terminate_thread(int gtid) {
   }
   __kmp_free_handle(th->th.th_info.ds.ds_thread);
 }
-#endif /* USE_OS_THREADING */
-
-
-void __kmp_clear_system_time(void) {
-  LARGE_INTEGER time;
-  QueryPerformanceCounter(&time);
-  __kmp_win32_time = (kmp_int64)time.QuadPart;
-}
-
-void __kmp_initialize_system_tick(void) {
-  {
-    BOOL status;
-    LARGE_INTEGER freq;
-
-    status = QueryPerformanceFrequency(&freq);
-    if (!status) {
-      DWORD error = GetLastError();
-      __kmp_fatal(KMP_MSG(FunctionError, "QueryPerformanceFrequency()"),
-                  KMP_ERR(error), __kmp_msg_null);
-
-    } else {
-      __kmp_win32_tick = ((double)1.0) / (double)freq.QuadPart;
-    }
-  }
-}
-
-/* Calculate the elapsed wall clock time for the user */
-
-void __kmp_elapsed(double *t) {
-  LARGE_INTEGER now;
-  QueryPerformanceCounter(&now);
-  *t = ((double)now.QuadPart) * __kmp_win32_tick;
-}
-
-/* Calculate the elapsed wall clock tick for the user */
-
-void __kmp_elapsed_tick(double *t) { *t = __kmp_win32_tick; }
-
-void __kmp_read_system_time(double *delta) {
-  if (delta != NULL) {
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    *delta = ((double)(((kmp_int64)now.QuadPart) - __kmp_win32_time)) *
-             __kmp_win32_tick;
-  }
-}
-
-/* Return the current time stamp in nsec */
-kmp_uint64 __kmp_now_nsec() {
-  LARGE_INTEGER now;
-  QueryPerformanceCounter(&now);
-  return 1e9 * __kmp_win32_tick * now.QuadPart;
-}
-
-#if USE_OS_THREADING
 
 extern "C" void *__stdcall __kmp_launch_worker(void *arg) {
   volatile void *stack_data;
@@ -1237,67 +1121,6 @@ int __kmp_still_running(kmp_info_t *th) {
   return (WAIT_TIMEOUT == WaitForSingleObject(th->th.th_info.ds.ds_thread, 0));
 }
 
-#if KMP_USE_MONITOR
-void __kmp_create_monitor(kmp_info_t *th) {
-  kmp_thread_t handle;
-  DWORD idThread;
-  int ideal, new_ideal;
-
-  if (__kmp_dflt_blocktime == KMP_MAX_BLOCKTIME) {
-    // We don't need monitor thread in case of MAX_BLOCKTIME
-    KA_TRACE(10, ("__kmp_create_monitor: skipping monitor thread because of "
-                  "MAX blocktime\n"));
-    th->th.th_info.ds.ds_tid = 0; // this makes reap_monitor no-op
-    th->th.th_info.ds.ds_gtid = 0;
-    TCW_4(__kmp_init_monitor, 2); // Signal to stop waiting for monitor creation
-    return;
-  }
-  KA_TRACE(10, ("__kmp_create_monitor: try to create monitor\n"));
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-
-  __kmp_monitor_ev = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (__kmp_monitor_ev == NULL) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantCreateEvent), KMP_ERR(error), __kmp_msg_null);
-  }
-#if USE_ITT_BUILD
-  __kmp_itt_system_object_created(__kmp_monitor_ev, "Event");
-#endif /* USE_ITT_BUILD */
-
-  th->th.th_info.ds.ds_tid = KMP_GTID_MONITOR;
-  th->th.th_info.ds.ds_gtid = KMP_GTID_MONITOR;
-
-  // FIXME - on Windows* OS, if __kmp_monitor_stksize = 0, figure out how
-  // to automatically expand stacksize based on CreateThread error code.
-  if (__kmp_monitor_stksize == 0) {
-    __kmp_monitor_stksize = KMP_DEFAULT_MONITOR_STKSIZE;
-  }
-  if (__kmp_monitor_stksize < __kmp_sys_min_stksize) {
-    __kmp_monitor_stksize = __kmp_sys_min_stksize;
-  }
-
-  KA_TRACE(10, ("__kmp_create_monitor: requested stacksize = %d bytes\n",
-                (int)__kmp_monitor_stksize));
-
-  TCW_4(__kmp_global.g.g_time.dt.t_value, 0);
-
-  handle =
-      CreateThread(NULL, (SIZE_T)__kmp_monitor_stksize,
-                   (LPTHREAD_START_ROUTINE)__kmp_launch_monitor, (LPVOID)th,
-                   STACK_SIZE_PARAM_IS_A_RESERVATION, &idThread);
-  if (handle == 0) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantCreateThread), KMP_ERR(error), __kmp_msg_null);
-  } else
-    th->th.th_info.ds.ds_thread = handle;
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-
-  KA_TRACE(10, ("__kmp_create_monitor: monitor created %p\n",
-                (void *)th->th.th_info.ds.ds_thread));
-}
-#endif
 
 /* Check to see if thread is still alive.
    NOTE:  The ExitProcess(code) system call causes all threads to Terminate
@@ -1390,141 +1213,12 @@ static void __kmp_reap_common(kmp_info_t *th) {
   KMP_MB(); /* Flush all pending memory write invalidates.  */
 }
 
-#if KMP_USE_MONITOR
-void __kmp_reap_monitor(kmp_info_t *th) {
-  int status;
-
-  KA_TRACE(10, ("__kmp_reap_monitor: try to reap %p\n",
-                (void *)th->th.th_info.ds.ds_thread));
-
-  // If monitor has been created, its tid and gtid should be KMP_GTID_MONITOR.
-  // If both tid and gtid are 0, it means the monitor did not ever start.
-  // If both tid and gtid are KMP_GTID_DNE, the monitor has been shut down.
-  KMP_DEBUG_ASSERT(th->th.th_info.ds.ds_tid == th->th.th_info.ds.ds_gtid);
-  if (th->th.th_info.ds.ds_gtid != KMP_GTID_MONITOR) {
-    KA_TRACE(10, ("__kmp_reap_monitor: monitor did not start, returning\n"));
-    return;
-  }
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-
-  status = SetEvent(__kmp_monitor_ev);
-  if (status == FALSE) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantSetEvent), KMP_ERR(error), __kmp_msg_null);
-  }
-  KA_TRACE(10, ("__kmp_reap_monitor: reaping thread (%d)\n",
-                th->th.th_info.ds.ds_gtid));
-  __kmp_reap_common(th);
-
-  __kmp_free_handle(__kmp_monitor_ev);
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-}
-#endif
-
 void __kmp_reap_worker(kmp_info_t *th) {
   KA_TRACE(10, ("__kmp_reap_worker: reaping thread (%d)\n",
                 th->th.th_info.ds.ds_gtid));
   __kmp_reap_common(th);
 }
 
-#endif /* USE_OS_THREADING */
-
-#if KMP_HANDLE_SIGNALS
-
-static void __kmp_team_handler(int signo) {
-  if (__kmp_global.g.g_abort == 0) {
-    // Stage 1 signal handler, let's shut down all of the threads.
-    if (__kmp_debug_buf) {
-      __kmp_dump_debug_buffer();
-    }
-    KMP_MB(); // Flush all pending memory write invalidates.
-    TCW_4(__kmp_global.g.g_abort, signo);
-    KMP_MB(); // Flush all pending memory write invalidates.
-    TCW_4(__kmp_global.g.g_done, TRUE);
-    KMP_MB(); // Flush all pending memory write invalidates.
-  }
-} // __kmp_team_handler
-
-static sig_func_t __kmp_signal(int signum, sig_func_t handler) {
-  sig_func_t old = signal(signum, handler);
-  if (old == SIG_ERR) {
-    int error = errno;
-    __kmp_fatal(KMP_MSG(FunctionError, "signal"), KMP_ERR(error),
-                __kmp_msg_null);
-  }
-  return old;
-}
-
-static void __kmp_install_one_handler(int sig, sig_func_t handler,
-                                      int parallel_init) {
-  sig_func_t old;
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-  KB_TRACE(60, ("__kmp_install_one_handler: called: sig=%d\n", sig));
-  if (parallel_init) {
-    old = __kmp_signal(sig, handler);
-    // SIG_DFL on Windows* OS in NULL or 0.
-    if (old == __kmp_sighldrs[sig]) {
-      __kmp_siginstalled[sig] = 1;
-    } else { // Restore/keep user's handler if one previously installed.
-      old = __kmp_signal(sig, old);
-    }
-  } else {
-    // Save initial/system signal handlers to see if user handlers installed.
-    // 2009-09-23: It is a dead code. On Windows* OS __kmp_install_signals
-    // called once with parallel_init == TRUE.
-    old = __kmp_signal(sig, SIG_DFL);
-    __kmp_sighldrs[sig] = old;
-    __kmp_signal(sig, old);
-  }
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-} // __kmp_install_one_handler
-
-static void __kmp_remove_one_handler(int sig) {
-  if (__kmp_siginstalled[sig]) {
-    sig_func_t old;
-    KMP_MB(); // Flush all pending memory write invalidates.
-    KB_TRACE(60, ("__kmp_remove_one_handler: called: sig=%d\n", sig));
-    old = __kmp_signal(sig, __kmp_sighldrs[sig]);
-    if (old != __kmp_team_handler) {
-      KB_TRACE(10, ("__kmp_remove_one_handler: oops, not our handler, "
-                    "restoring: sig=%d\n",
-                    sig));
-      old = __kmp_signal(sig, old);
-    }
-    __kmp_sighldrs[sig] = NULL;
-    __kmp_siginstalled[sig] = 0;
-    KMP_MB(); // Flush all pending memory write invalidates.
-  }
-} // __kmp_remove_one_handler
-
-void __kmp_install_signals(int parallel_init) {
-  KB_TRACE(10, ("__kmp_install_signals: called\n"));
-  if (!__kmp_handle_signals) {
-    KB_TRACE(10, ("__kmp_install_signals: KMP_HANDLE_SIGNALS is false - "
-                  "handlers not installed\n"));
-    return;
-  }
-  __kmp_install_one_handler(SIGINT, __kmp_team_handler, parallel_init);
-  __kmp_install_one_handler(SIGILL, __kmp_team_handler, parallel_init);
-  __kmp_install_one_handler(SIGABRT, __kmp_team_handler, parallel_init);
-  __kmp_install_one_handler(SIGFPE, __kmp_team_handler, parallel_init);
-  __kmp_install_one_handler(SIGSEGV, __kmp_team_handler, parallel_init);
-  __kmp_install_one_handler(SIGTERM, __kmp_team_handler, parallel_init);
-} // __kmp_install_signals
-
-void __kmp_remove_signals(void) {
-  int sig;
-  KB_TRACE(10, ("__kmp_remove_signals: called\n"));
-  for (sig = 1; sig < NSIG; ++sig) {
-    __kmp_remove_one_handler(sig);
-  }
-} // __kmp_remove_signals
-
-#endif // KMP_HANDLE_SIGNALS
-
-#if USE_OS_THREADING
 
 /* Put the thread to sleep for a time period */
 void __kmp_thread_sleep(int millis) {
@@ -1538,30 +1232,6 @@ void __kmp_thread_sleep(int millis) {
   }
 }
 
-#endif USE_OS_THREADING
-
-// Determine whether the given address is mapped into the current address space.
-int __kmp_is_address_mapped(void *addr) {
-  MEMORY_BASIC_INFORMATION lpBuffer;
-  SIZE_T dwLength;
-
-  dwLength = sizeof(MEMORY_BASIC_INFORMATION);
-
-  VirtualQuery(addr, &lpBuffer, dwLength);
-
-  return !(((lpBuffer.State == MEM_RESERVE) || (lpBuffer.State == MEM_FREE)) ||
-           ((lpBuffer.Protect == PAGE_NOACCESS) ||
-            (lpBuffer.Protect == PAGE_EXECUTE)));
-}
-
-kmp_uint64 __kmp_hardware_timestamp(void) {
-  kmp_uint64 r = 0;
-
-  QueryPerformanceCounter((LARGE_INTEGER *)&r);
-  return r;
-}
-
-#if USE_OS_THREADING
 
 /* Free handle and check the error code */
 void __kmp_free_handle(kmp_thread_t tHandle) {
@@ -1694,43 +1364,6 @@ finish: // Clean up and exit.
   return running_threads;
 } //__kmp_get_load_balance()
 
-#endif /* USE_OS_THREADING */
-
-// Find symbol from the loaded modules
-void *__kmp_lookup_symbol(const char *name, bool next) {
-  HANDLE process = GetCurrentProcess();
-  DWORD needed;
-  HMODULE *modules = nullptr;
-  if (!EnumProcessModules(process, modules, 0, &needed))
-    return nullptr;
-  DWORD num_modules = needed / sizeof(HMODULE);
-  modules = (HMODULE *)malloc(num_modules * sizeof(HMODULE));
-  if (!EnumProcessModules(process, modules, needed, &needed)) {
-    free(modules);
-    return nullptr;
-  }
-  HMODULE curr_module = nullptr;
-  if (next) {
-    // Current module needs to be skipped if next flag is true
-    if (!GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-                           (LPCTSTR)&__kmp_lookup_symbol, &curr_module)) {
-      free(modules);
-      return nullptr;
-    }
-  }
-  void *proc = nullptr;
-  for (uint32_t i = 0; i < num_modules; i++) {
-    if (next && modules[i] == curr_module)
-      continue;
-    proc = (void *)GetProcAddress(modules[i], name);
-    if (proc)
-      break;
-  }
-  free(modules);
-  return proc;
-}
-
-#if USE_OS_THREADING
 
 // Functions for hidden helper task
 void __kmp_hidden_helper_worker_thread_wait() {
@@ -1768,5 +1401,3 @@ void __kmp_hidden_helper_threads_deinitz_wait() {
 void __kmp_hidden_helper_threads_deinitz_release() {
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
-
-#endif /* USE_OS_THREADING */
