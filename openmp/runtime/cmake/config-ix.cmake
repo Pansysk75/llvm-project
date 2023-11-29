@@ -358,6 +358,12 @@ if(${LIBOMP_USE_HWLOC})
   endif()
 endif()
 
+# Find HPX
+if(${LIBOMP_USE_HPX})
+  set(HPX_ROOT ${LIBOMP_HPX_INSTALL_DIR}) #TODO_HPXMP: Verify that find_package prioritizes HPX_ROOT over system paths
+  find_package(HPX REQUIRED)
+endif()
+
 # Check if ThreadSanitizer support is available
 if("${CMAKE_SYSTEM_NAME}" MATCHES "Linux" AND ${INTEL64})
   set(LIBOMP_HAVE_TSAN_SUPPORT TRUE)
