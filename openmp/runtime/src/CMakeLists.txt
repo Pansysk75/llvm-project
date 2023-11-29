@@ -90,7 +90,22 @@ else()
     kmp_sched.cpp
     kmp_collapse.cpp
   )
-  if(WIN32)
+  if(${LIBOMP_USE_HPX})
+    libomp_append(LIBOMP_CXXFILES z_HPX_threading_util.cpp)
+    if(WIN32)
+        if(${LIBOMP_ARCH} STREQUAL "i386" OR ${LIBOMP_ARCH} STREQUAL "x86_64")
+          libomp_append(LIBOMP_ASMFILES z_Windows_NT-586_asm.asm) # Windows assembly file
+        elseif((${LIBOMP_ARCH} STREQUAL "aarch64" OR ${LIBOMP_ARCH} STREQUAL "arm") AND (NOT MSVC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+          # z_Linux_asm.S works for AArch64 and ARM Windows too.
+          libomp_append(LIBOMP_GNUASMFILES z_Linux_asm.S)
+        else()
+          # AArch64 with MSVC gets implementations of the functions from
+          # ifdeffed sections in z_Windows_NT-586_util.cpp.
+        endif()
+    else()
+        libomp_append(LIBOMP_GNUASMFILES z_Linux_asm.S) # Unix assembly file
+    endif()
+  elseif(WIN32)
     # Windows specific files
     libomp_append(LIBOMP_CXXFILES z_Windows_NT_util.cpp)
     libomp_append(LIBOMP_CXXFILES z_Windows_NT-586_util.cpp)
@@ -170,6 +185,10 @@ if(${LIBOMP_USE_HWLOC})
 			     "$<BUILD_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
 			     "$<INSTALL_INTERFACE:${LIBOMP_HWLOC_INCLUDE_DIR}>"
   )
+endif()
+if(${LIBOMP_USE_HPX})
+    target_compile_definitions(omp PUBLIC USE_OS_THREADING=0)
+    target_link_libraries(omp PUBLIC HPX::hpx HPX::wrap_main)
 endif()
 
 if(OPENMP_MSVC_NAME_SCHEME)

@@ -1,3 +1,4 @@
+#include <iostream>
 /*
  * z_Windows_NT_util.cpp -- platform specific routines.
  */
@@ -299,11 +300,13 @@ void __kmp_win32_cond_signal(kmp_win32_cond_t *cv) {
 }
 
 void __kmp_enable(int new_state) {
+  std::cout << __FUNCTION__ << std::endl;
   if (__kmp_init_runtime)
     LeaveCriticalSection(&__kmp_win32_section);
 }
 
 void __kmp_disable(int *old_state) {
+  std::cout << __FUNCTION__ << std::endl;
   *old_state = 0;
 
   if (__kmp_init_runtime)
@@ -311,9 +314,11 @@ void __kmp_disable(int *old_state) {
 }
 
 void __kmp_suspend_initialize(void) { /* do nothing */
+  std::cout << __FUNCTION__ << std::endl;
 }
 
 void __kmp_suspend_initialize_thread(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   int old_value = KMP_ATOMIC_LD_RLX(&th->th.th_suspend_init);
   int new_value = TRUE;
   // Return if already initialized
@@ -334,6 +339,7 @@ void __kmp_suspend_initialize_thread(kmp_info_t *th) {
 }
 
 void __kmp_suspend_uninitialize_thread(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   if (KMP_ATOMIC_LD_ACQ(&th->th.th_suspend_init)) {
     /* this means we have initialize the suspension pthread objects for this
        thread in this instance of the process */
@@ -344,14 +350,17 @@ void __kmp_suspend_uninitialize_thread(kmp_info_t *th) {
 }
 
 int __kmp_try_suspend_mx(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   return __kmp_win32_mutex_trylock(&th->th.th_suspend_mx);
 }
 
 void __kmp_lock_suspend_mx(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_win32_mutex_lock(&th->th.th_suspend_mx);
 }
 
 void __kmp_unlock_suspend_mx(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_win32_mutex_unlock(&th->th.th_suspend_mx);
 }
 
@@ -359,6 +368,7 @@ void __kmp_unlock_suspend_mx(kmp_info_t *th) {
    sleep bit for the indicated flag variable to true. */
 template <class C>
 static inline void __kmp_suspend_template(int th_gtid, C *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_info_t *th = __kmp_threads[th_gtid];
   typename C::flag_t old_spin;
 
@@ -461,17 +471,21 @@ static inline void __kmp_suspend_template(int th_gtid, C *flag) {
 
 template <bool C, bool S>
 void __kmp_suspend_32(int th_gtid, kmp_flag_32<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_suspend_template(th_gtid, flag);
 }
 template <bool C, bool S>
 void __kmp_suspend_64(int th_gtid, kmp_flag_64<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_suspend_template(th_gtid, flag);
 }
 template <bool C, bool S>
 void __kmp_atomic_suspend_64(int th_gtid, kmp_atomic_flag_64<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_suspend_template(th_gtid, flag);
 }
 void __kmp_suspend_oncore(int th_gtid, kmp_flag_oncore *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_suspend_template(th_gtid, flag);
 }
 
@@ -487,6 +501,7 @@ __kmp_atomic_suspend_64<true, false>(int, kmp_atomic_flag_64<true, false> *);
    after setting the sleep bit indicated by the flag argument to FALSE */
 template <class C>
 static inline void __kmp_resume_template(int target_gtid, C *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_info_t *th = __kmp_threads[target_gtid];
 
 #ifdef KMP_DEBUG
@@ -542,17 +557,21 @@ static inline void __kmp_resume_template(int target_gtid, C *flag) {
 
 template <bool C, bool S>
 void __kmp_resume_32(int target_gtid, kmp_flag_32<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_resume_template(target_gtid, flag);
 }
 template <bool C, bool S>
 void __kmp_resume_64(int target_gtid, kmp_flag_64<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_resume_template(target_gtid, flag);
 }
 template <bool C, bool S>
 void __kmp_atomic_resume_64(int target_gtid, kmp_atomic_flag_64<C, S> *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_resume_template(target_gtid, flag);
 }
 void __kmp_resume_oncore(int target_gtid, kmp_flag_oncore *flag) {
+  std::cout << __FUNCTION__ << std::endl;
   __kmp_resume_template(target_gtid, flag);
 }
 
@@ -562,9 +581,13 @@ template void __kmp_resume_64<false, true>(int, kmp_flag_64<false, true> *);
 template void
 __kmp_atomic_resume_64<false, true>(int, kmp_atomic_flag_64<false, true> *);
 
-void __kmp_yield() { Sleep(0); }
+void __kmp_yield() {
+  std::cout << __FUNCTION__ << std::endl;
+  Sleep(0);
+}
 
 void __kmp_gtid_set_specific(int gtid) {
+  std::cout << __FUNCTION__ << std::endl;
   if (__kmp_init_gtid) {
     KA_TRACE(50, ("__kmp_gtid_set_specific: T#%d key:%d\n", gtid,
                   __kmp_gtid_threadprivate_key));
@@ -577,6 +600,7 @@ void __kmp_gtid_set_specific(int gtid) {
 }
 
 int __kmp_gtid_get_specific() {
+  std::cout << __FUNCTION__ << std::endl;
   int gtid;
   if (!__kmp_init_gtid) {
     KA_TRACE(50, ("__kmp_gtid_get_specific: runtime shutdown, returning "
@@ -595,6 +619,7 @@ int __kmp_gtid_get_specific() {
 }
 
 void __kmp_affinity_bind_thread(int proc) {
+  std::cout << __FUNCTION__ << std::endl;
   if (__kmp_num_proc_groups > 1) {
     // Form the GROUP_AFFINITY struct directly, rather than filling
     // out a bit vector and calling __kmp_set_system_affinity().
@@ -629,6 +654,7 @@ void __kmp_affinity_bind_thread(int proc) {
 }
 
 void __kmp_affinity_determine_capable(const char *env_var) {
+  std::cout << __FUNCTION__ << std::endl;
   // All versions of Windows* OS (since Win '95) support
   // SetThreadAffinityMask().
 
@@ -645,6 +671,7 @@ void __kmp_affinity_determine_capable(const char *env_var) {
 }
 
 double __kmp_read_cpu_time(void) {
+  std::cout << __FUNCTION__ << std::endl;
   FILETIME CreationTime, ExitTime, KernelTime, UserTime;
   int status;
   double cpu_time;
@@ -673,6 +700,7 @@ double __kmp_read_cpu_time(void) {
 }
 
 int __kmp_read_system_info(struct kmp_sys_info *info) {
+  std::cout << __FUNCTION__ << std::endl;
   info->maxrss = 0; /* the maximum resident set size utilized (in kilobytes) */
   info->minflt = 0; /* the number of page faults serviced without any I/O */
   info->majflt = 0; /* the number of page faults serviced that required I/O */
@@ -686,6 +714,7 @@ int __kmp_read_system_info(struct kmp_sys_info *info) {
 }
 
 void __kmp_runtime_initialize(void) {
+  std::cout << __FUNCTION__ << std::endl;
   SYSTEM_INFO info;
   kmp_str_buf_t path;
   UINT path_size;
@@ -887,6 +916,7 @@ void __kmp_runtime_initialize(void) {
 } // __kmp_runtime_initialize
 
 void __kmp_runtime_destroy(void) {
+  std::cout << __FUNCTION__ << std::endl;
   if (!__kmp_init_runtime) {
     return;
   }
@@ -922,6 +952,7 @@ void __kmp_runtime_destroy(void) {
 }
 
 void __kmp_terminate_thread(int gtid) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_info_t *th = __kmp_threads[gtid];
 
   if (!th)
@@ -936,6 +967,7 @@ void __kmp_terminate_thread(int gtid) {
 }
 
 void __kmp_clear_system_time(void) {
+  std::cout << __FUNCTION__ << std::endl;
   LARGE_INTEGER time;
   QueryPerformanceCounter(&time);
   __kmp_win32_time = (kmp_int64)time.QuadPart;
@@ -961,6 +993,7 @@ void __kmp_initialize_system_tick(void) {
 /* Calculate the elapsed wall clock time for the user */
 
 void __kmp_elapsed(double *t) {
+  std::cout << __FUNCTION__ << std::endl;
   LARGE_INTEGER now;
   QueryPerformanceCounter(&now);
   *t = ((double)now.QuadPart) * __kmp_win32_tick;
@@ -968,9 +1001,13 @@ void __kmp_elapsed(double *t) {
 
 /* Calculate the elapsed wall clock tick for the user */
 
-void __kmp_elapsed_tick(double *t) { *t = __kmp_win32_tick; }
+void __kmp_elapsed_tick(double *t) { 
+  std::cout << __FUNCTION__ << std::endl;
+  *t = __kmp_win32_tick;
+}
 
 void __kmp_read_system_time(double *delta) {
+  std::cout << __FUNCTION__ << std::endl;
   if (delta != NULL) {
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
@@ -981,6 +1018,7 @@ void __kmp_read_system_time(double *delta) {
 
 /* Return the current time stamp in nsec */
 kmp_uint64 __kmp_now_nsec() {
+  std::cout << __FUNCTION__ << std::endl;
   LARGE_INTEGER now;
   QueryPerformanceCounter(&now);
   return 1e9 * __kmp_win32_tick * now.QuadPart;
@@ -1042,6 +1080,7 @@ extern "C" void *__stdcall __kmp_launch_worker(void *arg) {
 /* The monitor thread controls all of the threads in the complex */
 
 void *__stdcall __kmp_launch_monitor(void *arg) {
+  std::cout << __FUNCTION__ << std::endl;
   DWORD wait_status;
   kmp_thread_t monitor;
   int status;
@@ -1141,6 +1180,7 @@ void *__stdcall __kmp_launch_monitor(void *arg) {
 #endif
 
 void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_thread_t handle;
   DWORD idThread;
 
@@ -1216,11 +1256,13 @@ void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
 }
 
 int __kmp_still_running(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   return (WAIT_TIMEOUT == WaitForSingleObject(th->th.th_info.ds.ds_thread, 0));
 }
 
 #if KMP_USE_MONITOR
 void __kmp_create_monitor(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_thread_t handle;
   DWORD idThread;
   int ideal, new_ideal;
@@ -1288,6 +1330,7 @@ void __kmp_create_monitor(kmp_info_t *th) {
    even after the thread is dead. */
 
 int __kmp_is_thread_alive(kmp_info_t *th, DWORD *exit_val) {
+  std::cout << __FUNCTION__ << std::endl;
   DWORD rc;
   rc = GetExitCodeThread(th->th.th_info.ds.ds_thread, exit_val);
   if (rc == 0) {
@@ -1299,11 +1342,13 @@ int __kmp_is_thread_alive(kmp_info_t *th, DWORD *exit_val) {
 }
 
 void __kmp_exit_thread(int exit_status) {
+  std::cout << __FUNCTION__ << std::endl;
   ExitThread(exit_status);
 } // __kmp_exit_thread
 
 // This is a common part for both __kmp_reap_worker() and __kmp_reap_monitor().
 static void __kmp_reap_common(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   DWORD exit_val;
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
@@ -1374,6 +1419,7 @@ static void __kmp_reap_common(kmp_info_t *th) {
 
 #if KMP_USE_MONITOR
 void __kmp_reap_monitor(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   int status;
 
   KA_TRACE(10, ("__kmp_reap_monitor: try to reap %p\n",
@@ -1406,6 +1452,7 @@ void __kmp_reap_monitor(kmp_info_t *th) {
 #endif
 
 void __kmp_reap_worker(kmp_info_t *th) {
+  std::cout << __FUNCTION__ << std::endl;
   KA_TRACE(10, ("__kmp_reap_worker: reaping thread (%d)\n",
                 th->th.th_info.ds.ds_gtid));
   __kmp_reap_common(th);
@@ -1414,6 +1461,7 @@ void __kmp_reap_worker(kmp_info_t *th) {
 #if KMP_HANDLE_SIGNALS
 
 static void __kmp_team_handler(int signo) {
+  std::cout << __FUNCTION__ << std::endl;
   if (__kmp_global.g.g_abort == 0) {
     // Stage 1 signal handler, let's shut down all of the threads.
     if (__kmp_debug_buf) {
@@ -1428,6 +1476,7 @@ static void __kmp_team_handler(int signo) {
 } // __kmp_team_handler
 
 static sig_func_t __kmp_signal(int signum, sig_func_t handler) {
+  std::cout << __FUNCTION__ << std::endl;
   sig_func_t old = signal(signum, handler);
   if (old == SIG_ERR) {
     int error = errno;
@@ -1439,6 +1488,7 @@ static sig_func_t __kmp_signal(int signum, sig_func_t handler) {
 
 static void __kmp_install_one_handler(int sig, sig_func_t handler,
                                       int parallel_init) {
+  std::cout << __FUNCTION__ << std::endl;
   sig_func_t old;
   KMP_MB(); /* Flush all pending memory write invalidates.  */
   KB_TRACE(60, ("__kmp_install_one_handler: called: sig=%d\n", sig));
@@ -1462,6 +1512,7 @@ static void __kmp_install_one_handler(int sig, sig_func_t handler,
 } // __kmp_install_one_handler
 
 static void __kmp_remove_one_handler(int sig) {
+  std::cout << __FUNCTION__ << std::endl;
   if (__kmp_siginstalled[sig]) {
     sig_func_t old;
     KMP_MB(); // Flush all pending memory write invalidates.
@@ -1480,6 +1531,7 @@ static void __kmp_remove_one_handler(int sig) {
 } // __kmp_remove_one_handler
 
 void __kmp_install_signals(int parallel_init) {
+  std::cout << __FUNCTION__ << std::endl;
   KB_TRACE(10, ("__kmp_install_signals: called\n"));
   if (!__kmp_handle_signals) {
     KB_TRACE(10, ("__kmp_install_signals: KMP_HANDLE_SIGNALS is false - "
@@ -1495,6 +1547,7 @@ void __kmp_install_signals(int parallel_init) {
 } // __kmp_install_signals
 
 void __kmp_remove_signals(void) {
+  std::cout << __FUNCTION__ << std::endl;
   int sig;
   KB_TRACE(10, ("__kmp_remove_signals: called\n"));
   for (sig = 1; sig < NSIG; ++sig) {
@@ -1506,6 +1559,7 @@ void __kmp_remove_signals(void) {
 
 /* Put the thread to sleep for a time period */
 void __kmp_thread_sleep(int millis) {
+  std::cout << __FUNCTION__ << std::endl;
   DWORD status;
 
   status = SleepEx((DWORD)millis, FALSE);
@@ -1518,6 +1572,7 @@ void __kmp_thread_sleep(int millis) {
 
 // Determine whether the given address is mapped into the current address space.
 int __kmp_is_address_mapped(void *addr) {
+  std::cout << __FUNCTION__ << std::endl;
   MEMORY_BASIC_INFORMATION lpBuffer;
   SIZE_T dwLength;
 
@@ -1531,6 +1586,7 @@ int __kmp_is_address_mapped(void *addr) {
 }
 
 kmp_uint64 __kmp_hardware_timestamp(void) {
+  std::cout << __FUNCTION__ << std::endl;
   kmp_uint64 r = 0;
 
   QueryPerformanceCounter((LARGE_INTEGER *)&r);
@@ -1539,6 +1595,7 @@ kmp_uint64 __kmp_hardware_timestamp(void) {
 
 /* Free handle and check the error code */
 void __kmp_free_handle(kmp_thread_t tHandle) {
+  std::cout << __FUNCTION__ << std::endl;
   /* called with parameter type HANDLE also, thus suppose kmp_thread_t defined
    * as HANDLE */
   BOOL rc;
@@ -1550,6 +1607,7 @@ void __kmp_free_handle(kmp_thread_t tHandle) {
 }
 
 int __kmp_get_load_balance(int max) {
+  std::cout << __FUNCTION__ << std::endl;
   static ULONG glb_buff_size = 100 * 1024;
 
   // Saved count of the running threads for the thread balance algorithm
@@ -1668,8 +1726,10 @@ finish: // Clean up and exit.
   return running_threads;
 } //__kmp_get_load_balance()
 
+
 // Find symbol from the loaded modules
 void *__kmp_lookup_symbol(const char *name, bool next) {
+  std::cout << __FUNCTION__ << std::endl;
   HANDLE process = GetCurrentProcess();
   DWORD needed;
   HMODULE *modules = nullptr;
@@ -1704,37 +1764,46 @@ void *__kmp_lookup_symbol(const char *name, bool next) {
 
 // Functions for hidden helper task
 void __kmp_hidden_helper_worker_thread_wait() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_do_initialize_hidden_helper_threads() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_threads_initz_wait() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_initz_release() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_main_thread_wait() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_main_thread_release() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_worker_thread_signal() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_threads_deinitz_wait() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }
 
 void __kmp_hidden_helper_threads_deinitz_release() {
+  std::cout << __FUNCTION__ << std::endl;
   KMP_ASSERT(0 && "Hidden helper task is not supported on Windows");
 }

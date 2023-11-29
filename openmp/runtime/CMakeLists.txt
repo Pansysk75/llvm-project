@@ -140,6 +140,12 @@ set(LIBOMP_USE_HWLOC FALSE CACHE BOOL
 set(LIBOMP_HWLOC_INSTALL_DIR /usr/local CACHE PATH
   "Install path for hwloc library")
 
+# Use HPX runtime for threading
+set(LIBOMP_USE_HPX FALSE CACHE BOOL
+  "Use HPX library for threading?")
+set(LIBOMP_HPX_INSTALL_DIR /usr/local CACHE PATH #TODO_HPX: What should default be?
+  "Install path for HPX library")
+
 # Get the build number from kmp_version.cpp
 libomp_get_build_number("${CMAKE_CURRENT_SOURCE_DIR}" LIBOMP_VERSION_BUILD)
 math(EXPR LIBOMP_VERSION_BUILD_YEAR "${LIBOMP_VERSION_BUILD}/10000")
@@ -415,6 +421,7 @@ if(${OPENMP_STANDALONE_BUILD})
   libomp_say("Use Adaptive locks   -- ${LIBOMP_USE_ADAPTIVE_LOCKS}")
   libomp_say("Use quad precision   -- ${LIBOMP_USE_QUAD_PRECISION}")
   libomp_say("Use Hwloc library    -- ${LIBOMP_USE_HWLOC}")
+  libomp_say("Use HPX library      -- ${LIBOMP_USE_HPX}")
   libomp_say("Use OMPX-taskgraph   -- ${LIBOMP_OMPX_TASKGRAPH}")
 endif()
 
