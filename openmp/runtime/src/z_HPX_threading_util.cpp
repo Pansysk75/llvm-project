@@ -2,6 +2,9 @@
  * z_HPX_util.cpp -- HPX threading routines.
  */
 
+//#include "hpx/threading_base/
+#include "hpx/hpx_init.hpp"
+#include "hpx/thread.hpp"
 
 // TODO_HPXMP: Remove unnecessary includes.
 #include "kmp.h"
@@ -19,125 +22,7 @@
 #endif
 
 
-enum SYSTEM_INFORMATION_CLASS {
-  SystemProcessInformation = 5
-}; // SYSTEM_INFORMATION_CLASS
-
-struct CLIENT_ID {
-  HANDLE UniqueProcess;
-  HANDLE UniqueThread;
-}; // struct CLIENT_ID
-
-enum THREAD_STATE {
-  StateInitialized,
-  StateReady,
-  StateRunning,
-  StateStandby,
-  StateTerminated,
-  StateWait,
-  StateTransition,
-  StateUnknown
-}; // enum THREAD_STATE
-
-struct VM_COUNTERS {
-  SIZE_T PeakVirtualSize;
-  SIZE_T VirtualSize;
-  ULONG PageFaultCount;
-  SIZE_T PeakWorkingSetSize;
-  SIZE_T WorkingSetSize;
-  SIZE_T QuotaPeakPagedPoolUsage;
-  SIZE_T QuotaPagedPoolUsage;
-  SIZE_T QuotaPeakNonPagedPoolUsage;
-  SIZE_T QuotaNonPagedPoolUsage;
-  SIZE_T PagefileUsage;
-  SIZE_T PeakPagefileUsage;
-  SIZE_T PrivatePageCount;
-}; // struct VM_COUNTERS
-
-struct SYSTEM_THREAD {
-  LARGE_INTEGER KernelTime;
-  LARGE_INTEGER UserTime;
-  LARGE_INTEGER CreateTime;
-  ULONG WaitTime;
-  LPVOID StartAddress;
-  CLIENT_ID ClientId;
-  DWORD Priority;
-  LONG BasePriority;
-  ULONG ContextSwitchCount;
-  THREAD_STATE State;
-  ULONG WaitReason;
-}; // SYSTEM_THREAD
-
-KMP_BUILD_ASSERT(offsetof(SYSTEM_THREAD, KernelTime) == 0);
-#if KMP_ARCH_X86 || KMP_ARCH_ARM
-KMP_BUILD_ASSERT(offsetof(SYSTEM_THREAD, StartAddress) == 28);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_THREAD, State) == 52);
-#else
-KMP_BUILD_ASSERT(offsetof(SYSTEM_THREAD, StartAddress) == 32);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_THREAD, State) == 68);
-#endif
-
-struct SYSTEM_PROCESS_INFORMATION {
-  ULONG NextEntryOffset;
-  ULONG NumberOfThreads;
-  LARGE_INTEGER Reserved[3];
-  LARGE_INTEGER CreateTime;
-  LARGE_INTEGER UserTime;
-  LARGE_INTEGER KernelTime;
-  UNICODE_STRING ImageName;
-  DWORD BasePriority;
-  HANDLE ProcessId;
-  HANDLE ParentProcessId;
-  ULONG HandleCount;
-  ULONG Reserved2[2];
-  VM_COUNTERS VMCounters;
-  IO_COUNTERS IOCounters;
-  SYSTEM_THREAD Threads[1];
-}; // SYSTEM_PROCESS_INFORMATION
-typedef SYSTEM_PROCESS_INFORMATION *PSYSTEM_PROCESS_INFORMATION;
-
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, NextEntryOffset) == 0);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, CreateTime) == 32);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, ImageName) == 56);
-#if KMP_ARCH_X86 || KMP_ARCH_ARM
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, ProcessId) == 68);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, HandleCount) == 76);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, VMCounters) == 88);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, IOCounters) == 136);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, Threads) == 184);
-#else
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, ProcessId) == 80);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, HandleCount) == 96);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, VMCounters) == 112);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, IOCounters) == 208);
-KMP_BUILD_ASSERT(offsetof(SYSTEM_PROCESS_INFORMATION, Threads) == 256);
-#endif
-
-typedef NTSTATUS(NTAPI *NtQuerySystemInformation_t)(SYSTEM_INFORMATION_CLASS,
-                                                    PVOID, ULONG, PULONG);
-NtQuerySystemInformation_t NtQuerySystemInformation = NULL;
-
-HMODULE ntdll = NULL;
-
-/* End of NtQuerySystemInformation()-related code */
-
-static HMODULE kernel32 = NULL;
-
-#if KMP_HANDLE_SIGNALS
-typedef void (*sig_func_t)(int);
-static sig_func_t __kmp_sighldrs[NSIG];
-static int __kmp_siginstalled[NSIG];
-#endif
-
-#if KMP_USE_MONITOR
-static HANDLE __kmp_monitor_ev;
-#endif
-
-
-int __kmp_init_runtime = FALSE;
-CRITICAL_SECTION __kmp_win32_section;
-
-// TOD_HPXMP: Note to self, all __kmp_win32 functions are internal, so they can 
+// TODO_HPXMP: Note to self, all __kmp_win32 functions are internal, so they can 
 // be replaced by their hpxmp counterparts (or inlined altogether).
 
 void __kmp_win32_mutex_init(kmp_win32_mutex_t *mx) {
@@ -291,6 +176,9 @@ void __kmp_win32_cond_signal(kmp_win32_cond_t *cv) {
   __kmp_win32_cond_broadcast(cv);
 }
 
+// HPXMP TODO: Figure out if these need to coordinate with HPX runtime, or 
+// if it's ok to let OS do it's thing
+#if 0
 void __kmp_enable(int new_state) {
   if (__kmp_init_runtime)
     LeaveCriticalSection(&__kmp_win32_section);
@@ -305,6 +193,7 @@ void __kmp_disable(int *old_state) {
 
 void __kmp_suspend_initialize(void) { /* do nothing */
 }
+# endif
 
 void __kmp_suspend_initialize_thread(kmp_info_t *th) {
   int old_value = KMP_ATOMIC_LD_RLX(&th->th.th_suspend_init);
@@ -555,15 +444,13 @@ template void __kmp_resume_64<false, true>(int, kmp_flag_64<false, true> *);
 template void
 __kmp_atomic_resume_64<false, true>(int, kmp_atomic_flag_64<false, true> *);
 
-void __kmp_yield() { Sleep(0); }
+void __kmp_yield() { hpx::this_thread::yield(); }
 
 void __kmp_gtid_set_specific(int gtid) {
+  // HPXMP TODO: Is TLS used for anything else other that gtid? If not, this is probably cool
   if (__kmp_init_gtid) {
-    KA_TRACE(50, ("__kmp_gtid_set_specific: T#%d key:%d\n", gtid,
-                  __kmp_gtid_threadprivate_key));
-    kmp_intptr_t g = (kmp_intptr_t)gtid;
-    if (!TlsSetValue(__kmp_gtid_threadprivate_key, (LPVOID)(g + 1)))
-      KMP_FATAL(TLSSetValueFailed);
+    KA_TRACE(50, ("__kmp_gtid_set_specific: T#%d\n", gtid));
+    hpx::this_thread::set_thread_data(gtid);
   } else {
     KA_TRACE(50, ("__kmp_gtid_set_specific: runtime shutdown, returning\n"));
   }
@@ -576,316 +463,42 @@ int __kmp_gtid_get_specific() {
                   "KMP_GTID_SHUTDOWN\n"));
     return KMP_GTID_SHUTDOWN;
   }
-  gtid = (int)(kmp_intptr_t)TlsGetValue(__kmp_gtid_threadprivate_key);
+  gtid = hpx::this_thread::get_thread_data();
   if (gtid == 0) {
     gtid = KMP_GTID_DNE;
   } else {
     gtid--;
   }
-  KA_TRACE(50, ("__kmp_gtid_get_specific: key:%d gtid:%d\n",
-                __kmp_gtid_threadprivate_key, gtid));
+  KA_TRACE(50, ("__kmp_gtid_get_specific: gtid:%d\n", gtid));
   return gtid;
 }
 
 void __kmp_affinity_bind_thread(int proc) {
-  if (__kmp_num_proc_groups > 1) {
-    // Form the GROUP_AFFINITY struct directly, rather than filling
-    // out a bit vector and calling __kmp_set_system_affinity().
-    GROUP_AFFINITY ga;
-    KMP_DEBUG_ASSERT((proc >= 0) && (proc < (__kmp_num_proc_groups * CHAR_BIT *
-                                             sizeof(DWORD_PTR))));
-    ga.Group = proc / (CHAR_BIT * sizeof(DWORD_PTR));
-    ga.Mask = (unsigned long long)1 << (proc % (CHAR_BIT * sizeof(DWORD_PTR)));
-    ga.Reserved[0] = ga.Reserved[1] = ga.Reserved[2] = 0;
-
-    KMP_DEBUG_ASSERT(__kmp_SetThreadGroupAffinity != NULL);
-    if (__kmp_SetThreadGroupAffinity(GetCurrentThread(), &ga, NULL) == 0) {
-      DWORD error = GetLastError();
-      // AC: continue silently if not verbose
-      if (__kmp_affinity.flags.verbose) {
-        kmp_msg_t err_code = KMP_ERR(error);
-        __kmp_msg(kmp_ms_warning, KMP_MSG(CantSetThreadAffMask), err_code,
-                  __kmp_msg_null);
-        if (__kmp_generate_warnings == kmp_warnings_off) {
-          __kmp_str_free(&err_code.str);
-        }
-      }
-    }
-  } else {
-    kmp_affin_mask_t *mask;
-    KMP_CPU_ALLOC_ON_STACK(mask);
-    KMP_CPU_ZERO(mask);
-    KMP_CPU_SET(proc, mask);
-    __kmp_set_system_affinity(mask, TRUE);
-    KMP_CPU_FREE_FROM_STACK(mask);
-  }
+  // HPXMP TODO: This is disabled for now, figure out if we can enable it
+  KMP_ASSERT2(KMP_AFFINITY_CAPABLE(),
+              "Illegal set affinity operation when not capable");
 }
 
 void __kmp_affinity_determine_capable(const char *env_var) {
-  // All versions of Windows* OS (since Win '95) support
-  // SetThreadAffinityMask().
-
-#if KMP_GROUP_AFFINITY
-  KMP_AFFINITY_ENABLE(__kmp_num_proc_groups * sizeof(DWORD_PTR));
-#else
-  KMP_AFFINITY_ENABLE(sizeof(DWORD_PTR));
-#endif
-
-  KA_TRACE(10, ("__kmp_affinity_determine_capable: "
-                "Windows* OS affinity interface functional (mask size = "
-                "%" KMP_SIZE_T_SPEC ").\n",
-                __kmp_affin_mask_size));
-}
-
-
-void __kmp_runtime_initialize(void) {
-  SYSTEM_INFO info;
-  kmp_str_buf_t path;
-  UINT path_size;
-
-  if (__kmp_init_runtime) {
-    return;
-  }
-
-#if KMP_DYNAMIC_LIB
-  /* Pin dynamic library for the lifetime of application */
-  {
-    // First, turn off error message boxes
-    UINT err_mode = SetErrorMode(SEM_FAILCRITICALERRORS);
-    HMODULE h;
-    BOOL ret = GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                     GET_MODULE_HANDLE_EX_FLAG_PIN,
-                                 (LPCTSTR)&__kmp_serial_initialize, &h);
-    (void)ret;
-    KMP_DEBUG_ASSERT2(h && ret, "OpenMP RTL cannot find itself loaded");
-    SetErrorMode(err_mode); // Restore error mode
-    KA_TRACE(10, ("__kmp_runtime_initialize: dynamic library pinned\n"));
-  }
-#endif
-
-  InitializeCriticalSection(&__kmp_win32_section);
-#if USE_ITT_BUILD
-  __kmp_itt_system_object_created(&__kmp_win32_section, "Critical Section");
-#endif /* USE_ITT_BUILD */
-  __kmp_initialize_system_tick();
-
-#if (KMP_ARCH_X86 || KMP_ARCH_X86_64)
-  if (!__kmp_cpuinfo.initialized) {
-    __kmp_query_cpuid(&__kmp_cpuinfo);
-  }
-#endif /* KMP_ARCH_X86 || KMP_ARCH_X86_64 */
-
-/* Set up minimum number of threads to switch to TLS gtid */
-#if KMP_OS_WINDOWS && !KMP_DYNAMIC_LIB
-  // Windows* OS, static library.
-  /* New thread may use stack space previously used by another thread,
-     currently terminated. On Windows* OS, in case of static linking, we do not
-     know the moment of thread termination, and our structures (__kmp_threads
-     and __kmp_root arrays) are still keep info about dead threads. This leads
-     to problem in __kmp_get_global_thread_id() function: it wrongly finds gtid
-     (by searching through stack addresses of all known threads) for
-     unregistered foreign tread.
-
-     Setting __kmp_tls_gtid_min to 0 workarounds this problem:
-     __kmp_get_global_thread_id() does not search through stacks, but get gtid
-     from TLS immediately.
-      --ln
-  */
-  __kmp_tls_gtid_min = 0;
-#else
-  __kmp_tls_gtid_min = KMP_TLS_GTID_MIN;
-#endif
-
-  /* for the static library */
-  if (!__kmp_gtid_threadprivate_key) {
-    __kmp_gtid_threadprivate_key = TlsAlloc();
-    if (__kmp_gtid_threadprivate_key == TLS_OUT_OF_INDEXES) {
-      KMP_FATAL(TLSOutOfIndexes);
-    }
-  }
-
-  // Load ntdll.dll.
-  /* Simple GetModuleHandle( "ntdll.dl" ) is not suitable due to security issue
-     (see http://www.microsoft.com/technet/security/advisory/2269637.mspx). We
-     have to specify full path to the library. */
-  __kmp_str_buf_init(&path);
-  path_size = GetSystemDirectory(path.str, path.size);
-  KMP_DEBUG_ASSERT(path_size > 0);
-  if (path_size >= path.size) {
-    // Buffer is too short.  Expand the buffer and try again.
-    __kmp_str_buf_reserve(&path, path_size);
-    path_size = GetSystemDirectory(path.str, path.size);
-    KMP_DEBUG_ASSERT(path_size > 0);
-  }
-  if (path_size > 0 && path_size < path.size) {
-    // Now we have system directory name in the buffer.
-    // Append backslash and name of dll to form full path,
-    path.used = path_size;
-    __kmp_str_buf_print(&path, "\\%s", "ntdll.dll");
-
-    // Now load ntdll using full path.
-    ntdll = GetModuleHandle(path.str);
-  }
-
-  KMP_DEBUG_ASSERT(ntdll != NULL);
-  if (ntdll != NULL) {
-    NtQuerySystemInformation = (NtQuerySystemInformation_t)GetProcAddress(
-        ntdll, "NtQuerySystemInformation");
-  }
-  KMP_DEBUG_ASSERT(NtQuerySystemInformation != NULL);
-
-#if KMP_GROUP_AFFINITY
-  // Load kernel32.dll.
-  // Same caveat - must use full system path name.
-  if (path_size > 0 && path_size < path.size) {
-    // Truncate the buffer back to just the system path length,
-    // discarding "\\ntdll.dll", and replacing it with "kernel32.dll".
-    path.used = path_size;
-    __kmp_str_buf_print(&path, "\\%s", "kernel32.dll");
-
-    // Load kernel32.dll using full path.
-    kernel32 = GetModuleHandle(path.str);
-    KA_TRACE(10, ("__kmp_runtime_initialize: kernel32.dll = %s\n", path.str));
-
-    // Load the function pointers to kernel32.dll routines
-    // that may or may not exist on this system.
-    if (kernel32 != NULL) {
-      __kmp_GetActiveProcessorCount =
-          (kmp_GetActiveProcessorCount_t)GetProcAddress(
-              kernel32, "GetActiveProcessorCount");
-      __kmp_GetActiveProcessorGroupCount =
-          (kmp_GetActiveProcessorGroupCount_t)GetProcAddress(
-              kernel32, "GetActiveProcessorGroupCount");
-      __kmp_GetThreadGroupAffinity =
-          (kmp_GetThreadGroupAffinity_t)GetProcAddress(
-              kernel32, "GetThreadGroupAffinity");
-      __kmp_SetThreadGroupAffinity =
-          (kmp_SetThreadGroupAffinity_t)GetProcAddress(
-              kernel32, "SetThreadGroupAffinity");
-
-      KA_TRACE(10, ("__kmp_runtime_initialize: __kmp_GetActiveProcessorCount"
-                    " = %p\n",
-                    __kmp_GetActiveProcessorCount));
-      KA_TRACE(10, ("__kmp_runtime_initialize: "
-                    "__kmp_GetActiveProcessorGroupCount = %p\n",
-                    __kmp_GetActiveProcessorGroupCount));
-      KA_TRACE(10, ("__kmp_runtime_initialize:__kmp_GetThreadGroupAffinity"
-                    " = %p\n",
-                    __kmp_GetThreadGroupAffinity));
-      KA_TRACE(10, ("__kmp_runtime_initialize: __kmp_SetThreadGroupAffinity"
-                    " = %p\n",
-                    __kmp_SetThreadGroupAffinity));
-      KA_TRACE(10, ("__kmp_runtime_initialize: sizeof(kmp_affin_mask_t) = %d\n",
-                    sizeof(kmp_affin_mask_t)));
-
-      // See if group affinity is supported on this system.
-      // If so, calculate the #groups and #procs.
-      //
-      // Group affinity was introduced with Windows* 7 OS and
-      // Windows* Server 2008 R2 OS.
-      if ((__kmp_GetActiveProcessorCount != NULL) &&
-          (__kmp_GetActiveProcessorGroupCount != NULL) &&
-          (__kmp_GetThreadGroupAffinity != NULL) &&
-          (__kmp_SetThreadGroupAffinity != NULL) &&
-          ((__kmp_num_proc_groups = __kmp_GetActiveProcessorGroupCount()) >
-           1)) {
-        // Calculate the total number of active OS procs.
-        int i;
-
-        KA_TRACE(10, ("__kmp_runtime_initialize: %d processor groups"
-                      " detected\n",
-                      __kmp_num_proc_groups));
-
-        __kmp_xproc = 0;
-
-        for (i = 0; i < __kmp_num_proc_groups; i++) {
-          DWORD size = __kmp_GetActiveProcessorCount(i);
-          __kmp_xproc += size;
-          KA_TRACE(10, ("__kmp_runtime_initialize: proc group %d size = %d\n",
-                        i, size));
-        }
-      } else {
-        KA_TRACE(10, ("__kmp_runtime_initialize: %d processor groups"
-                      " detected\n",
-                      __kmp_num_proc_groups));
-      }
-    }
-  }
-  if (__kmp_num_proc_groups <= 1) {
-    GetSystemInfo(&info);
-    __kmp_xproc = info.dwNumberOfProcessors;
-  }
-#else
-  (void)kernel32;
-  GetSystemInfo(&info);
-  __kmp_xproc = info.dwNumberOfProcessors;
-#endif /* KMP_GROUP_AFFINITY */
-
-  // If the OS said there were 0 procs, take a guess and use a value of 2.
-  // This is done for Linux* OS, also.  Do we need error / warning?
-  if (__kmp_xproc <= 0) {
-    __kmp_xproc = 2;
-  }
-
-  KA_TRACE(5,
-           ("__kmp_runtime_initialize: total processors = %d\n", __kmp_xproc));
-
-  __kmp_str_buf_free(&path);
-
-#if USE_ITT_BUILD
-  __kmp_itt_initialize();
-#endif /* USE_ITT_BUILD */
-
-  __kmp_init_runtime = TRUE;
-} // __kmp_runtime_initialize
-
-void __kmp_runtime_destroy(void) {
-  if (!__kmp_init_runtime) {
-    return;
-  }
-
-#if USE_ITT_BUILD
-  __kmp_itt_destroy();
-#endif /* USE_ITT_BUILD */
-
-  /* we can't DeleteCriticalsection( & __kmp_win32_section ); */
-  /* due to the KX_TRACE() commands */
-  KA_TRACE(40, ("__kmp_runtime_destroy\n"));
-
-  if (__kmp_gtid_threadprivate_key) {
-    TlsFree(__kmp_gtid_threadprivate_key);
-    __kmp_gtid_threadprivate_key = 0;
-  }
-
-  __kmp_affinity_uninitialize();
-  DeleteCriticalSection(&__kmp_win32_section);
-
-  ntdll = NULL;
-  NtQuerySystemInformation = NULL;
-
-#if KMP_ARCH_X86_64
-  kernel32 = NULL;
-  __kmp_GetActiveProcessorCount = NULL;
-  __kmp_GetActiveProcessorGroupCount = NULL;
-  __kmp_GetThreadGroupAffinity = NULL;
-  __kmp_SetThreadGroupAffinity = NULL;
-#endif // KMP_ARCH_X86_64
-
-  __kmp_init_runtime = FALSE;
+  // HPXMP TODO: This is disabled for now, figure out if we can enable it
+  KMP_AFFINITY_DISABLE();
 }
 
 void __kmp_terminate_thread(int gtid) {
-  kmp_info_t *th = __kmp_threads[gtid];
+  // HPXMP TODO: Figure out if HPX threads can/need to be "killed"
+  KMP_ASSERT2(0, "__kmp_terminate_thread not yet implemented for HPXMP");
+  
+  //kmp_info_t *th = __kmp_threads[gtid];
 
-  if (!th)
-    return;
+  //if (!th)
+  //  return;
 
-  KA_TRACE(10, ("__kmp_terminate_thread: kill (%d)\n", gtid));
+  //KA_TRACE(10, ("__kmp_terminate_thread: kill (%d)\n", gtid));
 
-  if (TerminateThread(th->th.th_info.ds.ds_thread, (DWORD)-1) == FALSE) {
-    /* It's OK, the thread may have exited already */
-  }
-  __kmp_free_handle(th->th.th_info.ds.ds_thread);
+  //if (TerminateThread(th->th.th_info.ds.ds_thread, (DWORD)-1) == FALSE) {
+  //  /* It's OK, the thread may have exited already */
+  //}
+  //__kmp_free_handle(th->th.th_info.ds.ds_thread);
 }
 
 extern "C" void *__stdcall __kmp_launch_worker(void *arg) {
@@ -944,105 +557,12 @@ extern "C" void *__stdcall __kmp_launch_worker(void *arg) {
 /* The monitor thread controls all of the threads in the complex */
 
 void *__stdcall __kmp_launch_monitor(void *arg) {
-  DWORD wait_status;
-  kmp_thread_t monitor;
-  int status;
-  int interval;
-  kmp_info_t *this_thr = (kmp_info_t *)arg;
-
-  KMP_DEBUG_ASSERT(__kmp_init_monitor);
-  TCW_4(__kmp_init_monitor, 2); // AC: Signal library that monitor has started
-  // TODO: hide "2" in enum (like {true,false,started})
-  this_thr->th.th_info.ds.ds_thread_id = GetCurrentThreadId();
-  TCW_4(this_thr->th.th_info.ds.ds_alive, TRUE);
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-  KA_TRACE(10, ("__kmp_launch_monitor: launched\n"));
-
-  monitor = GetCurrentThread();
-
-  /* set thread priority */
-  status = SetThreadPriority(monitor, THREAD_PRIORITY_HIGHEST);
-  if (!status) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantSetThreadPriority), KMP_ERR(error), __kmp_msg_null);
-  }
-
-  /* register us as monitor */
-  __kmp_gtid_set_specific(KMP_GTID_MONITOR);
-#ifdef KMP_TDATA_GTID
-#error "This define causes problems with LoadLibrary() + declspec(thread) " \
-        "on Windows* OS.  See CQ50564, tests kmp_load_library*.c and this MSDN " \
-        "reference: http://support.microsoft.com/kb/118816"
-//__kmp_gtid = KMP_GTID_MONITOR;
-#endif
-
-#if USE_ITT_BUILD
-  __kmp_itt_thread_ignore(); // Instruct Intel(R) Threading Tools to ignore
-// monitor thread.
-#endif /* USE_ITT_BUILD */
-
-  KMP_MB(); /* Flush all pending memory write invalidates.  */
-
-  interval = (1000 / __kmp_monitor_wakeups); /* in milliseconds */
-
-  while (!TCR_4(__kmp_global.g.g_done)) {
-    /*  This thread monitors the state of the system */
-
-    KA_TRACE(15, ("__kmp_launch_monitor: update\n"));
-
-    wait_status = WaitForSingleObject(__kmp_monitor_ev, interval);
-
-    if (wait_status == WAIT_TIMEOUT) {
-      TCW_4(__kmp_global.g.g_time.dt.t_value,
-            TCR_4(__kmp_global.g.g_time.dt.t_value) + 1);
-    }
-
-    KMP_MB(); /* Flush all pending memory write invalidates.  */
-  }
-
-  KA_TRACE(10, ("__kmp_launch_monitor: finished\n"));
-
-  status = SetThreadPriority(monitor, THREAD_PRIORITY_NORMAL);
-  if (!status) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantSetThreadPriority), KMP_ERR(error), __kmp_msg_null);
-  }
-
-  if (__kmp_global.g.g_abort != 0) {
-    /* now we need to terminate the worker threads   */
-    /* the value of t_abort is the signal we caught */
-    int gtid;
-
-    KA_TRACE(10, ("__kmp_launch_monitor: terminate sig=%d\n",
-                  (__kmp_global.g.g_abort)));
-
-    /* terminate the OpenMP worker threads */
-    /* TODO this is not valid for sibling threads!!
-     * the uber master might not be 0 anymore.. */
-    for (gtid = 1; gtid < __kmp_threads_capacity; ++gtid)
-      __kmp_terminate_thread(gtid);
-
-    __kmp_cleanup();
-
-    Sleep(0);
-
-    KA_TRACE(10,
-             ("__kmp_launch_monitor: raise sig=%d\n", __kmp_global.g.g_abort));
-
-    if (__kmp_global.g.g_abort > 0) {
-      raise(__kmp_global.g.g_abort);
-    }
-  }
-
-  TCW_4(this_thr->th.th_info.ds.ds_alive, FALSE);
-
-  KMP_MB();
-  return arg;
+    // HPXMP TODO: Figure out if we need this
 }
 #endif
 
 void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
+  // PANOS: gtid --> index of free slot in the __kmp_threads array
   kmp_thread_t handle;
   DWORD idThread;
 
@@ -1050,66 +570,54 @@ void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
 
   th->th.th_info.ds.ds_gtid = gtid;
 
+    // PANOS: if this is called with gtid of uber thread, it probably means that
+    // we are registering the root thread, so just set the appropriate fields and
+    // don't create a new thread
   if (KMP_UBER_GTID(gtid)) {
-    int stack_data;
 
-    /* TODO: GetCurrentThread() returns a pseudo-handle that is unsuitable for
-       other threads to use. Is it appropriate to just use GetCurrentThread?
-       When should we close this handle?  When unregistering the root? */
-    {
-      BOOL rc;
-      rc = DuplicateHandle(GetCurrentProcess(), GetCurrentThread(),
-                           GetCurrentProcess(), &th->th.th_info.ds.ds_thread, 0,
-                           FALSE, DUPLICATE_SAME_ACCESS);
-      KMP_ASSERT(rc);
-      KA_TRACE(10, (" __kmp_create_worker: ROOT Handle duplicated, th = %p, "
-                    "handle = %" KMP_UINTPTR_SPEC "\n",
-                    (LPVOID)th, th->th.th_info.ds.ds_thread));
-      th->th.th_info.ds.ds_thread_id = GetCurrentThreadId();
-    }
-    if (TCR_4(__kmp_gtid_mode) < 2) { // check stack only if used to get gtid
-      /* we will dynamically update the stack range if gtid_mode == 1 */
-      TCW_PTR(th->th.th_info.ds.ds_stackbase, &stack_data);
-      TCW_PTR(th->th.th_info.ds.ds_stacksize, 0);
-      TCW_4(th->th.th_info.ds.ds_stackgrow, TRUE);
-      __kmp_check_stack_overlap(th);
-    }
+    // PANOS: On Windows, `ds_thread` contains a thread handle (of type kmp_thread_t === HANDLE), while thread id is in `ds_thread_id` (of type DWORD).
+    // On linux, only `ds_thread` is used (of type kmp_thread_t === pthread_t). I guess we will fallback to the latter mechanism if USE_OS_THREADING is false,
+    // so we only need to set ds_thread here.
+    th->th.th_info.ds.ds_thread = hpx::this_thread::get_id();
+    KA_TRACE(10, ("__kmp_create_worker: uber thread (%d)\n", gtid));
+
+    // PANOS: HPXMP_TODO: Figure out if we need sth similar for HPXMP
+    //if (TCR_4(__kmp_gtid_mode) < 2) { // check stack only if used to get gtid
+    //  /* we will dynamically update the stack range if gtid_mode == 1 */
+    //  TCW_PTR(th->th.th_info.ds.ds_stackbase, &stack_data);
+    //  TCW_PTR(th->th.th_info.ds.ds_stacksize, 0);
+    //  TCW_4(th->th.th_info.ds.ds_stackgrow, TRUE);
+    //  __kmp_check_stack_overlap(th);
+    //}
   } else {
     KMP_MB(); /* Flush all pending memory write invalidates.  */
 
-    /* Set stack size for this thread now. */
     KA_TRACE(10,
              ("__kmp_create_worker: stack_size = %" KMP_SIZE_T_SPEC " bytes\n",
               stack_size));
 
-    stack_size += gtid * __kmp_stkoffset;
-
-    TCW_PTR(th->th.th_info.ds.ds_stacksize, stack_size);
+    // PANOS: HPXMP_TODO: Figure out why this offset was used
+    //stack_size += gtid * __kmp_stkoffset;
+    //TCW_PTR(th->th.th_info.ds.ds_stacksize, stack_size);
     TCW_4(th->th.th_info.ds.ds_stackgrow, FALSE);
 
-    KA_TRACE(10,
-             ("__kmp_create_worker: (before) stack_size = %" KMP_SIZE_T_SPEC
-              " bytes, &__kmp_launch_worker = %p, th = %p, &idThread = %p\n",
-              (SIZE_T)stack_size, (LPTHREAD_START_ROUTINE)&__kmp_launch_worker,
-              (LPVOID)th, &idThread));
+    KA_TRACE(10, ("__kmp_create_worker: T#%d, default stacksize = %lu bytes, "
+                  "__kmp_stksize = %lu bytes, final stacksize = %lu bytes\n",
+                  gtid, KMP_DEFAULT_STKSIZE, __kmp_stksize, stack_size));
 
-    handle = CreateThread(
-        NULL, (SIZE_T)stack_size, (LPTHREAD_START_ROUTINE)__kmp_launch_worker,
-        (LPVOID)th, STACK_SIZE_PARAM_IS_A_RESERVATION, &idThread);
 
-    KA_TRACE(10,
-             ("__kmp_create_worker: (after) stack_size = %" KMP_SIZE_T_SPEC
-              " bytes, &__kmp_launch_worker = %p, th = %p, "
-              "idThread = %u, handle = %" KMP_UINTPTR_SPEC "\n",
-              (SIZE_T)stack_size, (LPTHREAD_START_ROUTINE)&__kmp_launch_worker,
-              (LPVOID)th, idThread, handle));
+    hpx::threads::thread_init_data data(
+        hpx::threads::make_thread_function_nullary(
+            hpx::util::deferred_call(&__kmp_launch_worker, (void *)th)),
+        "__kmp_create_worker");
 
-    if (handle == 0) {
-      DWORD error = GetLastError();
-      __kmp_fatal(KMP_MSG(CantCreateThread), KMP_ERR(error), __kmp_msg_null);
-    } else {
-      th->th.th_info.ds.ds_thread = handle;
-    }
+    data.run_now = true;
+
+    size_t stacksize =
+        hpx::get_runtime().get_config().get_stack_size(data.stacksize);
+    TCW_PTR(th->th.th_info.ds.ds_stacksize, stacksize);
+
+    hpx::threads::register_thread(data);
 
     KMP_MB(); /* Flush all pending memory write invalidates.  */
   }
@@ -1118,6 +626,8 @@ void __kmp_create_worker(int gtid, kmp_info_t *th, size_t stack_size) {
 }
 
 int __kmp_still_running(kmp_info_t *th) {
+  // HPXMP TODO: Figure out if we need this
+  KMP_ASSERT2(0, "__kmp_still_running not yet implemented for HPXMP");
   return (WAIT_TIMEOUT == WaitForSingleObject(th->th.th_info.ds.ds_thread, 0));
 }
 
@@ -1140,230 +650,42 @@ int __kmp_is_thread_alive(kmp_info_t *th, DWORD *exit_val) {
 }
 
 void __kmp_exit_thread(int exit_status) {
-  ExitThread(exit_status);
+  // HPXMP TODO: Set this thread state to terminated and return to scheduler
+  KMP_ASSERT2(0, "__kmp_exit_thread not yet implemented for HPXMP");
+
 } // __kmp_exit_thread
 
-// This is a common part for both __kmp_reap_worker() and __kmp_reap_monitor().
-static void __kmp_reap_common(kmp_info_t *th) {
-  DWORD exit_val;
+
+void __kmp_reap_worker(kmp_info_t *th) {
+  int status;
+  void *exit_val;
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
 
   KA_TRACE(
-      10, ("__kmp_reap_common: try to reap (%d)\n", th->th.th_info.ds.ds_gtid));
+      10, ("__kmp_reap_worker: try to reap T#%d\n", th->th.th_info.ds.ds_gtid));
 
-  /* 2006-10-19:
-     There are two opposite situations:
-     1. Windows* OS keep thread alive after it resets ds_alive flag and
-     exits from thread function. (For example, see C70770/Q394281 "unloading of
-     dll based on OMP is very slow".)
-     2. Windows* OS may kill thread before it resets ds_alive flag.
+    KMP_ASSERT2(0, "__kmp_reap_worker not yet implemented for HPXMP");
+  // HPXMP TODO: We should suspend here until the hpx thread completes
+  // (do like `pthread_join(th->th.th_info.ds.ds_thread, &exit_val);`)
 
-     Right solution seems to be waiting for *either* thread termination *or*
-     ds_alive resetting. */
-  {
-    // TODO: This code is very similar to KMP_WAIT. Need to generalize
-    // KMP_WAIT to cover this usage also.
-    void *obj = NULL;
-    kmp_uint32 spins;
-    kmp_uint64 time;
-#if USE_ITT_BUILD
-    KMP_FSYNC_SPIN_INIT(obj, (void *)&th->th.th_info.ds.ds_alive);
-#endif /* USE_ITT_BUILD */
-    KMP_INIT_YIELD(spins);
-    KMP_INIT_BACKOFF(time);
-    do {
-#if USE_ITT_BUILD
-      KMP_FSYNC_SPIN_PREPARE(obj);
-#endif /* USE_ITT_BUILD */
-      __kmp_is_thread_alive(th, &exit_val);
-      KMP_YIELD_OVERSUB_ELSE_SPIN(spins, time);
-    } while (exit_val == STILL_ACTIVE && TCR_4(th->th.th_info.ds.ds_alive));
-#if USE_ITT_BUILD
-    if (exit_val == STILL_ACTIVE) {
-      KMP_FSYNC_CANCEL(obj);
-    } else {
-      KMP_FSYNC_SPIN_ACQUIRED(obj);
-    }
-#endif /* USE_ITT_BUILD */
-  }
-
-  __kmp_free_handle(th->th.th_info.ds.ds_thread);
-
-  /* NOTE:  The ExitProcess(code) system call causes all threads to Terminate
-     with a exit_val = code.  Because of this we can not rely on exit_val having
-     any particular value. */
-  kmp_intptr_t e = (kmp_intptr_t)exit_val;
-  if (exit_val == STILL_ACTIVE) {
-    KA_TRACE(1, ("__kmp_reap_common: thread still active.\n"));
-  } else if ((void *)e != (void *)th) {
-    KA_TRACE(1, ("__kmp_reap_common: ExitProcess / TerminateThread used?\n"));
-  }
-
-  KA_TRACE(10,
-           ("__kmp_reap_common: done reaping (%d), handle = %" KMP_UINTPTR_SPEC
-            "\n",
-            th->th.th_info.ds.ds_gtid, th->th.th_info.ds.ds_thread));
-
-  th->th.th_info.ds.ds_thread = 0;
-  th->th.th_info.ds.ds_tid = KMP_GTID_DNE;
-  th->th.th_info.ds.ds_gtid = KMP_GTID_DNE;
-  th->th.th_info.ds.ds_thread_id = 0;
+  KA_TRACE(10, ("__kmp_reap_worker: done reaping T#%d\n",
+                th->th.th_info.ds.ds_gtid));
 
   KMP_MB(); /* Flush all pending memory write invalidates.  */
-}
-
-void __kmp_reap_worker(kmp_info_t *th) {
-  KA_TRACE(10, ("__kmp_reap_worker: reaping thread (%d)\n",
-                th->th.th_info.ds.ds_gtid));
-  __kmp_reap_common(th);
 }
 
 
 /* Put the thread to sleep for a time period */
 void __kmp_thread_sleep(int millis) {
-  DWORD status;
-
-  status = SleepEx((DWORD)millis, FALSE);
-  if (status) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(FunctionError, "SleepEx()"), KMP_ERR(error),
-                __kmp_msg_null);
-  }
+  hpx::this_thread::sleep_for(std::chrono::milliseconds(millis));
 }
 
 
 /* Free handle and check the error code */
 void __kmp_free_handle(kmp_thread_t tHandle) {
-  /* called with parameter type HANDLE also, thus suppose kmp_thread_t defined
-   * as HANDLE */
-  BOOL rc;
-  rc = CloseHandle(tHandle);
-  if (!rc) {
-    DWORD error = GetLastError();
-    __kmp_fatal(KMP_MSG(CantCloseHandle), KMP_ERR(error), __kmp_msg_null);
-  }
+  // TODO: delete this for HPXMP
 }
-
-int __kmp_get_load_balance(int max) {
-  static ULONG glb_buff_size = 100 * 1024;
-
-  // Saved count of the running threads for the thread balance algorithm
-  static int glb_running_threads = 0;
-  static double glb_call_time = 0; /* Thread balance algorithm call time */
-
-  int running_threads = 0; // Number of running threads in the system.
-  NTSTATUS status = 0;
-  ULONG buff_size = 0;
-  ULONG info_size = 0;
-  void *buffer = NULL;
-  PSYSTEM_PROCESS_INFORMATION spi = NULL;
-  int first_time = 1;
-
-  double call_time = 0.0; // start, finish;
-
-  __kmp_elapsed(&call_time);
-
-  if (glb_call_time &&
-      (call_time - glb_call_time < __kmp_load_balance_interval)) {
-    running_threads = glb_running_threads;
-    goto finish;
-  }
-  glb_call_time = call_time;
-
-  // Do not spend time on running algorithm if we have a permanent error.
-  if (NtQuerySystemInformation == NULL) {
-    running_threads = -1;
-    goto finish;
-  }
-
-  if (max <= 0) {
-    max = INT_MAX;
-  }
-
-  do {
-
-    if (first_time) {
-      buff_size = glb_buff_size;
-    } else {
-      buff_size = 2 * buff_size;
-    }
-
-    buffer = KMP_INTERNAL_REALLOC(buffer, buff_size);
-    if (buffer == NULL) {
-      running_threads = -1;
-      goto finish;
-    }
-    status = NtQuerySystemInformation(SystemProcessInformation, buffer,
-                                      buff_size, &info_size);
-    first_time = 0;
-
-  } while (status == STATUS_INFO_LENGTH_MISMATCH);
-  glb_buff_size = buff_size;
-
-#define CHECK(cond)                                                            \
-  {                                                                            \
-    KMP_DEBUG_ASSERT(cond);                                                    \
-    if (!(cond)) {                                                             \
-      running_threads = -1;                                                    \
-      goto finish;                                                             \
-    }                                                                          \
-  }
-
-  CHECK(buff_size >= info_size);
-  spi = PSYSTEM_PROCESS_INFORMATION(buffer);
-  for (;;) {
-    ptrdiff_t offset = uintptr_t(spi) - uintptr_t(buffer);
-    CHECK(0 <= offset &&
-          offset + sizeof(SYSTEM_PROCESS_INFORMATION) < info_size);
-    HANDLE pid = spi->ProcessId;
-    ULONG num = spi->NumberOfThreads;
-    CHECK(num >= 1);
-    size_t spi_size =
-        sizeof(SYSTEM_PROCESS_INFORMATION) + sizeof(SYSTEM_THREAD) * (num - 1);
-    CHECK(offset + spi_size <
-          info_size); // Make sure process info record fits the buffer.
-    if (spi->NextEntryOffset != 0) {
-      CHECK(spi_size <=
-            spi->NextEntryOffset); // And do not overlap with the next record.
-    }
-    // pid == 0 corresponds to the System Idle Process. It always has running
-    // threads on all cores. So, we don't consider the running threads of this
-    // process.
-    if (pid != 0) {
-      for (int i = 0; i < num; ++i) {
-        THREAD_STATE state = spi->Threads[i].State;
-        // Count threads that have Ready or Running state.
-        // !!! TODO: Why comment does not match the code???
-        if (state == StateRunning) {
-          ++running_threads;
-          // Stop counting running threads if the number is already greater than
-          // the number of available cores
-          if (running_threads >= max) {
-            goto finish;
-          }
-        }
-      }
-    }
-    if (spi->NextEntryOffset == 0) {
-      break;
-    }
-    spi = PSYSTEM_PROCESS_INFORMATION(uintptr_t(spi) + spi->NextEntryOffset);
-  }
-
-#undef CHECK
-
-finish: // Clean up and exit.
-
-  if (buffer != NULL) {
-    KMP_INTERNAL_FREE(buffer);
-  }
-
-  glb_running_threads = running_threads;
-
-  return running_threads;
-} //__kmp_get_load_balance()
-
 
 // Functions for hidden helper task
 void __kmp_hidden_helper_worker_thread_wait() {

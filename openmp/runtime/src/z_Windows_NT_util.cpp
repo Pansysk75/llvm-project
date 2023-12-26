@@ -31,6 +31,7 @@
 #endif
 
 #if USE_OS_THREADING
+#endif /* USE_OS_THREADING */
 
 enum SYSTEM_INFORMATION_CLASS {
   SystemProcessInformation = 5
@@ -135,7 +136,6 @@ HMODULE ntdll = NULL;
 /* End of NtQuerySystemInformation()-related code */
 
 static HMODULE kernel32 = NULL;
-#endif /* USE_OS_THREADING */
 
 #if KMP_HANDLE_SIGNALS
 typedef void (*sig_func_t)(int);
@@ -152,10 +152,10 @@ static HANDLE __kmp_monitor_ev;
 #endif /* USE_OS_THREADING */
 static kmp_int64 __kmp_win32_time;
 double __kmp_win32_tick;
-#if USE_OS_THREADING
 int __kmp_init_runtime = FALSE;
 CRITICAL_SECTION __kmp_win32_section;
 
+#if USE_OS_THREADING
 
 
 void __kmp_win32_mutex_init(kmp_win32_mutex_t *mx) {
@@ -309,6 +309,7 @@ void __kmp_win32_cond_signal(kmp_win32_cond_t *cv) {
   __kmp_win32_cond_broadcast(cv);
 }
 
+#endif /* USE_OS_THREADING */
 void __kmp_enable(int new_state) {
   if (__kmp_init_runtime)
     LeaveCriticalSection(&__kmp_win32_section);
@@ -321,6 +322,7 @@ void __kmp_disable(int *old_state) {
     EnterCriticalSection(&__kmp_win32_section);
 }
 
+#if USE_OS_THREADING
 void __kmp_suspend_initialize(void) { /* do nothing */
 }
 
@@ -698,7 +700,6 @@ int __kmp_read_system_info(struct kmp_sys_info *info) {
   return 1;
 }
 
-#if USE_OS_THREADING
 void __kmp_runtime_initialize(void) {
   SYSTEM_INFO info;
   kmp_str_buf_t path;
@@ -934,6 +935,7 @@ void __kmp_runtime_destroy(void) {
 
   __kmp_init_runtime = FALSE;
 }
+#if USE_OS_THREADING
 
 void __kmp_terminate_thread(int gtid) {
   kmp_info_t *th = __kmp_threads[gtid];
@@ -1575,6 +1577,8 @@ void __kmp_free_handle(kmp_thread_t tHandle) {
   }
 }
 
+#endif
+
 int __kmp_get_load_balance(int max) {
   static ULONG glb_buff_size = 100 * 1024;
 
@@ -1694,7 +1698,6 @@ finish: // Clean up and exit.
   return running_threads;
 } //__kmp_get_load_balance()
 
-#endif /* USE_OS_THREADING */
 
 // Find symbol from the loaded modules
 void *__kmp_lookup_symbol(const char *name, bool next) {
